@@ -54,7 +54,7 @@ func (e *MEmulator) GetIndex() int {
 }
 
 
-var emulatorMap map[string]*MEmulator;
+var emulatorMap map[string]*MEmulator = make(map[string]*MEmulator);
 
 func StartRDP(name string, index int) {
 	if _, ok := emulatorMap[name]; ok {
@@ -82,7 +82,7 @@ func CaptureVideo(name string) (*image.RGBA, error) {
 	return nil, ErrorEmulatorNotFound;
 }
 
-func GetEmulator(name string) (*MEmulator,error) {
+func GetEmulator(name string) (*MEmulator, error) {
 	if e, ok := emulatorMap[name]; ok {
 		return e, nil
 	}

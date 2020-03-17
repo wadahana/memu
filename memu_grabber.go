@@ -178,17 +178,19 @@ func (grabber *Grabber) CaptureVideo() (*image.RGBA, error) {
 		}
 		width := grabber.GetWidth();
 		height := grabber.GetHeight();
-		i := 0
 		src := grabber.buffer + 8;
-		for y := 0; y < height; y++ {
+		for y := height - 1; y >= 0; y-- {
+			i := y * width * 4;
 			for x := 0; x < width; x++ {
 				v0 := *(*uint8)(unsafe.Pointer(src))
 				v1 := *(*uint8)(unsafe.Pointer(src + 1))
 				v2 := *(*uint8)(unsafe.Pointer(src + 2))
-
+				
 				// BGRA => RGBA, and set A to 255
-				img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = v2, v1, v0, 255
-
+				img.Pix[i+0] = v0
+				img.Pix[i+1] = v1
+				img.Pix[i+2] = v2
+				img.Pix[i+3] = 255
 				i += 4
 				src += 4
 			}
