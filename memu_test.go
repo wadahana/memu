@@ -25,13 +25,13 @@ func Test_makeVCapKey(t *testing.T) {
 	}
 }
 
-func Test_grabber(t *testing.T) {
+func Test_RDP(t *testing.T) {
 	name := "MEmu_1";
 	StartRDP(name, 1);
 
 	vm, err := GetEmulator(name);
 	if err != nil {
-		t.Errorf("Test_grabber 获取虚拟机失败, err: %v", err);
+		t.Errorf("Test_RDP 获取虚拟机失败, err: %v", err);
 	}
 	bounds := vm.GetDisplayBounds();
 
@@ -41,15 +41,29 @@ func Test_grabber(t *testing.T) {
 		img, err := vm.CaptureVideo();
 		if err != nil {
 			//t.Printf("err: %v\n", err);
-			t.Errorf("Test_grabber 抓屏失败, err: %v", err);
+			t.Errorf("Test_RDP 抓屏失败, err: %v", err);
 			break;
 		} 
 		t.Logf("i: %d\r\n", i);
 		jpegName := fmt.Sprintf("%s_%d.jpeg", name, i);
 		err = saveJpeg(jpegName, img);
 		if err != nil {
-			t.Errorf("Test_grabber 抓屏失败, err: %v", err);
+			t.Errorf("Test_RDP 抓屏失败, err: %v", err);
 		}
 	}
+	var times = 30
+	for i := 0; i < times; i++ {
+		t := 4
+		if i == 0 {
+			t = 2
+		} else if i == times - 1 {
+			t = 3
+		}
+		x := float32(0.3);
+		y := float32((1.0/times) * i)
+		ev := NewMouseEvent(t, x, y)
+		vm.SendEvent(ev)
+	}
+
 	StopRDP(name);
 }

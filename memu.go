@@ -15,6 +15,7 @@ type MEmulator struct {
 	name string;
 	index int;
 	grabber *Grabber;
+	agent *EventAgent;
 }
 
 func (e *MEmulator) Init() error {
@@ -23,12 +24,19 @@ func (e *MEmulator) Init() error {
 	if err != nil {
 		return err;
 	}
+	e.agent = newEventAgent(e.GetIndex());
+	e.agent.Start();
 	return nil;
 }
+
 func (e *MEmulator) Close() {
 	if e.grabber != nil {
 		e.grabber.Close();
 		e.grabber = nil;
+	}
+	if e.agent != nil {
+		e.agent.Stop();
+		e.agent = nil;
 	}
 }
 func (e *MEmulator) GetDisplayBounds() image.Rectangle {
@@ -45,6 +53,11 @@ func (e *MEmulator) CaptureVideo() (*image.RGBA, error) {
 	return nil, ErrorGrabberNotInit;
 }
 
+func (e *MEmulator) SendEvent(ev Event) {
+	if e.agent != nil {
+		e.agent.Send(ev);
+	}
+}
 func (e *MEmulator) GetName() string {
 	return e.name;
 }
@@ -52,6 +65,7 @@ func (e *MEmulator) GetName() string {
 func (e *MEmulator) GetIndex() int {
 	return e.index;
 }
+
 
 
 var emulatorMap map[string]*MEmulator = make(map[string]*MEmulator);
