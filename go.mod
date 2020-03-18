@@ -1,4 +1,4 @@
-module memu
+module github.com/wadahana/memu
 
 go 1.13
 
