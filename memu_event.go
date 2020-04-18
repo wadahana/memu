@@ -58,7 +58,7 @@ func newEventAgent(index int) *EventAgent {
 	return &EventAgent{
 		index: index,
 		conn: nil,
-		port: 11011 + index * 10,
+		port: 11001 + index * 10,
 		retry: 0,
 		events: make(chan Event, 10),
 		stop:   make(chan struct{}),
