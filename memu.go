@@ -2,101 +2,49 @@ package memu
 
 import (
 	"image"
-	"errors"
-	"log"
+	"io"
+	"os"
+	"github.com/wadahana/memu/log"
 )
 
-var ErrorEmulatorNotFound error = errors.New("Emulator Not Found!");
-
-type MEmulator struct {
-//	GetDisplayBounds() image.Rectangle
-//	CaptureVideo() *image.RGBA
-
-	name string;
-	index int;
-	grabber *Grabber;
-	agent *EventAgent;
+type MEmuConfig struct {
+	MEmuPath   string
+	LoggerFile string
 }
-
-func (e *MEmulator) Init() error {
-	var err error = nil;
-	e.grabber, err = newGrabber(e.GetName());
-	if err != nil {
-		return err;
-	}
-	e.agent = newEventAgent(e.GetIndex());
-	e.agent.Start();
-	return nil;
-}
-
-func (e *MEmulator) Close() {
-	if e.grabber != nil {
-		e.grabber.Close();
-		e.grabber = nil;
-	}
-	if e.agent != nil {
-		e.agent.Stop();
-		e.agent = nil;
-	}
-}
-func (e *MEmulator) GetDisplayBounds() image.Rectangle {
-	if e.grabber != nil {
-		return e.grabber.GetBounds();
-	}
-	return image.Rectangle{};
-}
-
-func (e *MEmulator) CaptureVideo() (*image.RGBA, error) {
-	if e.grabber != nil {
-		return e.grabber.CaptureVideo();
-	}
-	return nil, ErrorGrabberNotInit;
-}
-
-func (e *MEmulator) SendEvent(ev Event) {
-	if e.agent != nil {
-		e.agent.Send(ev);
-	}
-}
-func (e *MEmulator) GetName() string {
-	return e.name;
-}
-
-func (e *MEmulator) GetIndex() int {
-	return e.index;
-}
-
-
 
 var emulatorMap map[string]*MEmulator = make(map[string]*MEmulator);
 
-func StartRDP(name string, index int) {
+func StartRDP(name string, index int, framerate int, bitrate int) *MEmuError {
 	if _, ok := emulatorMap[name]; ok {
-		return;
+		return nil;
 	}
 	e := &MEmulator{};
 	e.name = name;
 	e.index = index;
-	e.Init();
-	emulatorMap[name] = e;
-	// 
+	err := e.StartRDP(framerate, bitrate)
+	if err == nil {
+		emulatorMap[name] = e;
+		log.Infof("start MEmulator(%s)", name)
+	}
+	return err
 }
 
 func StopRDP(name string) {
 	if e, ok := emulatorMap[name]; ok {
 		delete(emulatorMap, name);
-		e.Close();
+		e.StopRDP();
+		log.Infof("stop MEmulator(%s)", name)
 	}
 }
 
-func CaptureVideo(name string) (*image.RGBA, error) {
+func CaptureVideo(name string) (*image.RGBA, *MEmuError) {
 	if e, ok := emulatorMap[name]; ok {
 		return e.CaptureVideo();
 	} 
 	return nil, ErrorEmulatorNotFound;
 }
 
-func GetEmulator(name string) (*MEmulator, error) {
+func GetEmulator(name string) (*MEmulator, *MEmuError) {
 	if e, ok := emulatorMap[name]; ok {
 		return e, nil
 	}
@@ -107,7 +55,19 @@ func GetEmulators() *map[string]*MEmulator {
 	return &emulatorMap;
 }
 
-func init() {
-    log.Println("memu init.");
 
+func Init(config *MEmuConfig) {
+    var logOut io.Writer = nil;
+    if config.LoggerFile == "console" {
+    	logOut = os.Stderr
+    } else {
+    	var err error = nil;
+    	logOut, err = os.OpenFile(config.LoggerFile, os.O_RDWR | os.O_APPEND | os.O_CREATE, 0x666);
+    	if err != nil {
+    		panic(err);
+    	}
+
+    }
+    log.InitLogger(logOut);
+    initMEmuCmd(config.MEmuPath);
 }

@@ -6,6 +6,7 @@ import (
 	"image/jpeg"
 	"os"
 	"fmt"
+	"time"
 )
 
 func saveJpeg(name string, img *image.RGBA) error {
@@ -52,17 +53,19 @@ func Test_RDP(t *testing.T) {
 		}
 	}
 	var times = 30
+	var one float32 = 1.0;
 	for i := 0; i < times; i++ {
-		t := 4
+		t := 5
 		if i == 0 {
 			t = 2
-		} else if i == times - 1 {
+		} else if i == (times - 1) {
 			t = 3
 		}
-		x := float32(0.3);
-		y := float32((1.0/times) * i)
+		y := float32(0.3);
+		x := float32(one * float32(i) / float32(times) + 0.1) 
 		ev := NewMouseEvent(t, x, y)
 		vm.SendEvent(ev)
+		time.Sleep(time.Millisecond * time.Duration(10));
 	}
 
 	StopRDP(name);

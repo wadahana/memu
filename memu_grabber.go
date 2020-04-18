@@ -5,10 +5,10 @@ import (
 //	"fmt"
 	"image"
 	"syscall"
-	"errors"
 	"unsafe"
-	"log"
 	"io"
+
+	"github.com/wadahana/memu/log"
 )
 
 /*
@@ -31,17 +31,14 @@ type Grabber struct {
 	buffer      uintptr
 	width       uint32
 	height      uint32
+	bitrate     int;
+	frameRate   int;
 	bounds      image.Rectangle
 	imageSize   uint32
-	
 };
 
-var (
-	ErrorMakeGrabberKeyFail = errors.New("Make Grabber key fail.");
- 	ErrorOpenFileMapFail    = errors.New("Open File Map fail.");
-	ErrorGrabberNotInit     = errors.New("Grabber Not Initialized");
-	ErrorCreateImageFail    = errors.New("Cannot create image.RGBA");
-) 
+
+
 const TRUE    BOOL = 1
 const FALSE   BOOL = 0
 const NULL    uintptr = 0
@@ -64,34 +61,26 @@ func typeToBOOL(b bool) BOOL {
 	return FALSE
 }
 // errno to error
-func errnoErr(e syscall.Errno) error {
-	switch e {
-	case 0:
-		return nil
-	case syscall.ERROR_IO_PENDING:
-		return syscall.ERROR_IO_PENDING
-	}
-	// TODO: add more here, after collecting data on the common
-	// error values see on Windows. (perhaps when running
-	// all.bat?)
-	return e
+func errnoErr(e syscall.Errno) *MEmuError {
+	return 	NewError(RC_SystemError, e.Error());
 }
 
-func openFileMapping(access uint32, possession bool, name *uint16) (handle syscall.Handle, err error) {
-	ret,_,errno := procOpenFileMapping.Call(uintptr(access), uintptr(typeToBOOL(possession)), uintptr(unsafe.Pointer(name)))
+func openFileMapping(access uint32, possession bool, name *uint16) (handle syscall.Handle, err *MEmuError) {
+	err = nil;
+	ret, _, errno := procOpenFileMapping.Call(uintptr(access), uintptr(typeToBOOL(possession)), uintptr(unsafe.Pointer(name)))
 	handle = syscall.Handle(ret)
+	log.Debugf("openFileMapping-> handle(%x), errno(%d)", handle, errno);
 	if handle == 0 {
 		if errno.(syscall.Errno) != 0 {
 			err = errnoErr(errno.(syscall.Errno))
 		} else {
-			err = syscall.EINVAL
+			err = ErrorInvalidArgument
 		}
 	}
-
-	return
+	return handle, err
 }
 
-func makeVCapKey(name string) (string, error) {
+func makeVCapKey(name string) (string, *MEmuError) {
 	c_name := C.CString(name);
 	defer C.free(unsafe.Pointer(c_name));
 	key := make([]byte, 256);
@@ -103,7 +92,7 @@ func makeVCapKey(name string) (string, error) {
 	return string(key), nil;
 }
 
-func createImage(rect image.Rectangle) (img *image.RGBA, e error) {
+func createImage(rect image.Rectangle) (img *image.RGBA, e *MEmuError) {
 	img = nil
 	e = ErrorCreateImageFail;
 
@@ -119,24 +108,25 @@ func createImage(rect image.Rectangle) (img *image.RGBA, e error) {
 	return img, e
 }
 
-func newGrabber(name string) (*Grabber, error) {
-	var err error = nil;
+func newGrabber(name string, framerate int, bitrate int) (*Grabber, *MEmuError) {
+	var err *MEmuError = nil;
+	var _err error = nil;
 	grabber := new(Grabber);
 	grabber.key, err = makeVCapKey(name);
 	if err != nil {
-		log.Fatalf("Can't make Grabber mmap key, err: %v", err);
+		log.Errorf("Can't make Grabber mmap key, err: %v", err);
 		return nil, ErrorMakeGrabberKeyFail;
 	}
-	log.Printf("key: %s\n", grabber.key);
+	log.Infof("key: %s\n", grabber.key);
 	var mode uint32 = syscall.FILE_MAP_WRITE | syscall.FILE_MAP_READ;
 	grabber.handleMap, err = openFileMapping(mode, false, syscall.StringToUTF16Ptr(grabber.key));
 	if err != nil || grabber.handleMap == syscall.InvalidHandle {
-		log.Fatalf("Grabber OpenFileMapping fail, err: %v", err);
+		log.Errorf("Grabber OpenFileMapping fail, err: %v", err);
 		return nil, ErrorOpenFileMapFail;
 	}
-	grabber.buffer, err = syscall.MapViewOfFile(grabber.handleMap, mode, 0, 0, 0);
-	if err != nil || grabber.buffer == NULL {
-		log.Fatalf("grabber MapViewOfFile fail, err: %v", err);
+	grabber.buffer, _err = syscall.MapViewOfFile(grabber.handleMap, mode, 0, 0, 0);
+	if _err != nil || grabber.buffer == NULL {
+		log.Errorf("grabber MapViewOfFile fail, err: %v", _err);
 		return nil, ErrorOpenFileMapFail;
 	}
 	var pW unsafe.Pointer = unsafe.Pointer(grabber.buffer);
@@ -148,29 +138,42 @@ func newGrabber(name string) (*Grabber, error) {
 	grabber.bounds.Min.Y = 0;
 	grabber.bounds.Max.X = int(width);
 	grabber.bounds.Max.Y = int(height);
+	grabber.frameRate = framerate;
+	grabber.bitrate = bitrate;
 	return grabber, nil;
 }
 
-func (grabber *Grabber) Close() error {
+func (grabber *Grabber) FrameRate() int {
+	return grabber.frameRate;
+}
+
+func (grabber *Grabber) Bitrate() int {
+	return grabber.bitrate;
+}
+
+func (grabber *Grabber) Close() *MEmuError {
 	var err error = nil;
 	if grabber.buffer != NULL {
 		err = syscall.UnmapViewOfFile(grabber.buffer);
 		grabber.buffer = NULL;
 		if err != nil {
-			log.Printf("UnmapViewOfFile fail, err: %v", err);
+			log.Infof("UnmapViewOfFile fail, err: %v", err);
 		}
 	}
 	if grabber.handleMap != syscall.InvalidHandle {
 		syscall.CloseHandle(grabber.handleMap);
 		grabber.handleMap = syscall.InvalidHandle;
 		if err != nil {
-			log.Printf("CloseHandle fail, err: %v", err);
+			log.Infof("CloseHandle fail, err: %v", err);
 		}
 	}
-	return err;
+	if err != nil {
+		return NewError(RC_SystemError, err.Error());
+	}
+	return nil;
 }
 
-func (grabber *Grabber) CaptureVideo() (*image.RGBA, error) {
+func (grabber *Grabber) CaptureVideo() (*image.RGBA, *MEmuError) {
 	if grabber.buffer != NULL && grabber.imageSize > 0 {
 		img, err := createImage(grabber.GetBounds())
 		if err != nil {
