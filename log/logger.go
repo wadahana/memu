@@ -11,7 +11,7 @@ var format = logging.MustStringFormatter(
 	`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
 )
 
-func initLogger(output io.Writer) {
+func InitLogger(output io.Writer) {
 
 	backend := logging.NewLogBackend(output, "", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, format)
@@ -20,15 +20,6 @@ func initLogger(output io.Writer) {
     backendLeveled.SetLevel(logging.DEBUG, "")
     logging.SetBackend(backendLeveled)
 }	
-
-func Print(i ...interface{}) {
-	logger.Print(i...)
-}
-
-func Printf(format string, args ...interface{}) {
-	logger.Printf(format, args...)
-}
-
 
 func Debug(i ...interface{}) {
 	logger.Debug(i...)
@@ -47,11 +38,11 @@ func Infof(format string, args ...interface{}) {
 }
 
 func Warn(i ...interface{}) {
-	logger.Warn(i...)
+	logger.Warning(i...)
 }
 
 func Warnf(format string, args ...interface{}) {
-	logger.Warnf(format, args...)
+	logger.Warningf(format, args...)
 }
 
 func Error(i ...interface{}) {
